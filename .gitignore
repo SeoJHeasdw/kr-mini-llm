@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Data
+data/raw/
+data/processed/
+*.bin
+*.pkl
+
+# Models / checkpoints
+checkpoints/
+models/
+*.pth
+*.pt
+
+# Logs
+logs/
+wandb/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+
+

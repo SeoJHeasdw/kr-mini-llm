@@ -1,0 +1,30 @@
+seed: 1337
+device: auto  # auto|cpu|mps|cuda
+
+data:
+  train_path: data/processed/train.txt
+  tokenizer_path: models/tokenizer.json
+
+model:
+  block_size: 128
+  n_layer: 4
+  n_head: 4
+  n_embd: 256
+  dropout: 0.1
+
+train:
+  batch_size: 16
+  max_steps: 300
+  learning_rate: 0.0003
+  weight_decay: 0.01
+  grad_clip: 1.0
+  log_every: 25
+  save_path: checkpoints/tiny_gpt.pt
+
+generate:
+  prompt: "안녕하세요"
+  max_new_tokens: 120
+  temperature: 0.9
+  top_k: 50
+
+

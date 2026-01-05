@@ -1,0 +1,8 @@
+vocab_size: null  # 자동으로 tokenizer에서 채움
+block_size: 128
+n_layer: 4
+n_head: 4
+n_embd: 256
+dropout: 0.1
+
+
