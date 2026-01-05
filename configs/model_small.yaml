@@ -1,0 +1,13 @@
+# 작은 모델(예시) 설정
+# - Phase 2에서 실제 모델 구현 시 사용
+
+vocab_size: 32000
+hidden_size: 768
+num_layers: 12
+num_heads: 12
+num_kv_heads: 4  # GQA
+intermediate_size: 2048  # SwiGLU
+max_seq_length: 1024
+rope_theta: 10000.0
+
+

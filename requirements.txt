@@ -1,24 +1,24 @@
-# Core
+# 코어
 torch>=2.0.0
 numpy>=1.24.0
 tqdm>=4.65.0
 
-# Config
+# 설정
 pyyaml>=6.0
 
-# NLP (future phases; not required for the minimal toy run)
+# NLP (추후 단계에서 사용)
 transformers>=4.30.0
 tokenizers>=0.13.0
 sentencepiece>=0.1.99
 
-# Data (future phases; not required for the minimal toy run)
+# 데이터 (추후 단계에서 사용)
 datasets>=2.12.0
 pyarrow>=12.0.0
 
-# Training / logging (optional)
+# 학습/로깅 (선택)
 wandb>=0.15.0
 
-# Dev
+# 개발
 pytest>=7.3.0
 black>=23.3.0
 flake8>=6.0.0

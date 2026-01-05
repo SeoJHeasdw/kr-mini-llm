@@ -1,5 +1,5 @@
-from .tokenizer import CharTokenizer
+from .tokenizer import KoreanTokenizer
 
-__all__ = ["CharTokenizer"]
+__all__ = ["KoreanTokenizer"]
 
 

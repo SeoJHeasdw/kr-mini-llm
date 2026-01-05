@@ -1,62 +1,34 @@
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List
+from typing import List, Sequence
+
+from sentencepiece import SentencePieceProcessor
 
 
-@dataclass(frozen=True)
-class CharTokenizer:
+class KoreanTokenizer:
     """
-    Ultra-simple character-level tokenizer (UTF-8 safe via Python str).
-    Good enough for an end-to-end smoke test on a MacBook Air.
+    SentencePiece 기반 한국어 토크나이저 래퍼.
+
+    - Phase 2에서 `scripts/train_tokenizer.py`로 학습한 `models/tokenizer.model`을 로드해서 사용합니다.
+    - 여기서는 "구조"만 제공하고, 전처리/정규화/스페셜 토큰 정책은 이후 단계에서 확정합니다.
     """
 
-    stoi: Dict[str, int]
-    itos: List[str]
-    unk_token: str = "<unk>"
+    def __init__(self, model_path: str | Path):
+        self.model_path = Path(model_path)
+        self.sp = SentencePieceProcessor()
+        if not self.sp.load(str(self.model_path)):
+            raise FileNotFoundError(f"SentencePiece 모델을 로드하지 못했습니다: {self.model_path}")
 
     @property
     def vocab_size(self) -> int:
-        return len(self.itos)
-
-    @classmethod
-    def train_from_text(cls, text: str, *, add_unk: bool = True) -> "CharTokenizer":
-        chars = sorted(set(text))
-        itos: List[str] = []
-        if add_unk:
-            itos.append("<unk>")
-        itos.extend(chars)
-        stoi = {ch: i for i, ch in enumerate(itos)}
-        return cls(stoi=stoi, itos=itos)
+        return int(self.sp.get_piece_size())
 
     def encode(self, text: str) -> List[int]:
-        unk_id = self.stoi.get(self.unk_token, 0)
-        return [self.stoi.get(ch, unk_id) for ch in text]
+        # TODO: 필요하면 한국어 정규화(띄어쓰기/반각/특수문자) 정책을 추가하세요.
+        return list(self.sp.encode(text, out_type=int))
 
-    def decode(self, ids: List[int]) -> str:
-        out = []
-        for i in ids:
-            if 0 <= i < len(self.itos):
-                out.append(self.itos[i])
-            else:
-                out.append(self.unk_token)
-        return "".join(out)
-
-    def save(self, path: str | Path) -> None:
-        path = Path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {"itos": self.itos, "unk_token": self.unk_token}
-        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    @classmethod
-    def load(cls, path: str | Path) -> "CharTokenizer":
-        path = Path(path)
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        itos: List[str] = payload["itos"]
-        unk_token: str = payload.get("unk_token", "<unk>")
-        stoi = {ch: i for i, ch in enumerate(itos)}
-        return cls(stoi=stoi, itos=itos, unk_token=unk_token)
+    def decode(self, ids: Sequence[int]) -> str:
+        return str(self.sp.decode(list(ids)))
 
 

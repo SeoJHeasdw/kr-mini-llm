@@ -1,45 +1,50 @@
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
-
-from src.data import CharTokenizer
-
-
-SAMPLE_KO = """\
-안녕하세요. 저는 작은 한국어 LLM을 만들고 있어요.
-오늘은 맥북 에어에서도 돌아가는 아주 작은 모델을 먼저 만들어봅니다.
-모델은 완벽할 필요가 없고, 파이프라인이 끝까지 연결되는 게 목표예요.
-
-한국어는 조사와 어미 변화가 많아서 데이터가 중요합니다.
-하지만 지금은 샘플 텍스트로도 학습/저장/생성까지 잘 되는지만 확인해요.
-
-내일은 토크나이저를 SentencePiece로 바꾸거나,
-더 좋은 아키텍처(RoPE, RMSNorm, SwiGLU, GQA)로 발전시킬 수 있어요.
-"""
 
 
 def main() -> None:
-    raw_dir = Path("data/raw")
-    proc_dir = Path("data/processed")
-    model_dir = Path("models")
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--raw_dir", type=str, default="data/raw", help="원본 텍스트(.txt) 디렉토리")
+    ap.add_argument("--out_dir", type=str, default="data/processed", help="전처리 결과 디렉토리")
+    ap.add_argument("--train_out", type=str, default="train.txt")
+    ap.add_argument("--valid_out", type=str, default="valid.txt")
+    ap.add_argument("--valid_ratio", type=float, default=0.01)
+    args = ap.parse_args()
+
+    raw_dir = Path(args.raw_dir)
+    out_dir = Path(args.out_dir)
     raw_dir.mkdir(parents=True, exist_ok=True)
-    proc_dir.mkdir(parents=True, exist_ok=True)
-    model_dir.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-    raw_path = raw_dir / "sample_ko.txt"
-    train_path = proc_dir / "train.txt"
-    tok_path = model_dir / "tokenizer.json"
+    txt_files = sorted(raw_dir.glob("*.txt"))
+    if not txt_files:
+        raise FileNotFoundError(
+            f"{raw_dir}에 .txt 파일이 없습니다.\n"
+            f"- 예: data/raw/corpus_001.txt\n"
+            f"- 준비 후 다시 `python scripts/prepare_data.py`를 실행하세요."
+        )
 
-    raw_path.write_text(SAMPLE_KO, encoding="utf-8")
-    train_path.write_text(SAMPLE_KO, encoding="utf-8")
+    # 아주 단순한 Phase 1 전처리: 파일 합치기(정제/중복 제거/문장 분리는 Phase 3에서 확장)
+    all_text = []
+    for p in txt_files:
+        all_text.append(p.read_text(encoding="utf-8", errors="ignore"))
+    merged = "\n".join(all_text).strip() + "\n"
 
-    tok = CharTokenizer.train_from_text(SAMPLE_KO)
-    tok.save(tok_path)
+    # 매우 단순한 split: 라인 단위로 나눠 검증셋을 일부 떼어냄
+    lines = [ln for ln in merged.splitlines() if ln.strip()]
+    n_valid = max(1, int(len(lines) * float(args.valid_ratio)))
+    valid_lines = lines[:n_valid]
+    train_lines = lines[n_valid:]
 
-    print("✅ Prepared sample data + tokenizer")
-    print(f"- raw: {raw_path}")
-    print(f"- train: {train_path}")
-    print(f"- tokenizer: {tok_path} (vocab_size={tok.vocab_size})")
+    (out_dir / args.train_out).write_text("\n".join(train_lines) + "\n", encoding="utf-8")
+    (out_dir / args.valid_out).write_text("\n".join(valid_lines) + "\n", encoding="utf-8")
+
+    print("✅ 데이터 준비 완료(Phase 1 수준: 합치기 + 단순 split)")
+    print(f"- raw_dir: {raw_dir} (files={len(txt_files)})")
+    print(f"- train: {out_dir / args.train_out} (lines={len(train_lines)})")
+    print(f"- valid: {out_dir / args.valid_out} (lines={len(valid_lines)})")
 
 
 if __name__ == "__main__":
