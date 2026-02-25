@@ -33,4 +33,8 @@ wandb/
 # OS
 .DS_Store
 
+# Bobkit
+.bob/
+.bobmodes
+.specify
 
