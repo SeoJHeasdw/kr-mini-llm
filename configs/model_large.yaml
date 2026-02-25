@@ -1,0 +1,21 @@
+# M4 Max 대형 모델 설정 (도전 과제)
+# 예상 파라미터: ~800M
+# 메모리 사용량: ~18-22GB (학습 시)
+
+vocab_size: 32000
+hidden_size: 1536
+num_layers: 24
+num_heads: 24
+num_kv_heads: 6  # Grouped Query Attention
+intermediate_size: 6144  # SwiGLU (4 * hidden_size)
+max_seq_length: 2048
+rope_theta: 10000.0
+dropout: 0.1
+
+# 성능 목표
+# - 학습 속도: 1-1.5 steps/sec
+# - 학습 시간: ~44시간 (200k steps)
+# - 추론 속도: > 30 tokens/sec
+# - Validation PPL: < 12
+
+# Made with Bob

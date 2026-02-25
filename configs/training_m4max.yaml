@@ -1,0 +1,63 @@
+# M4 Max 최적화 학습 설정 (Medium 모델용)
+
+seed: 1337
+device: mps  # Metal Performance Shaders
+
+data:
+  train_path: data/processed/train.txt
+  valid_path: data/processed/valid.txt
+  tokenizer_model: models/tokenizer.model
+
+train:
+  # 배치 설정
+  batch_size: 16
+  gradient_accumulation_steps: 4
+  effective_batch_size: 64  # 16 * 4
+  max_seq_length: 2048
+  
+  # 옵티마이저
+  learning_rate: 2.0e-4
+  weight_decay: 0.1
+  max_grad_norm: 1.0
+  
+  # 스케줄러
+  warmup_steps: 4000
+  max_steps: 200000
+  lr_scheduler: cosine
+  min_lr: 2.0e-5  # learning_rate의 10%
+  
+  # 체크포인트
+  save_steps: 5000
+  eval_steps: 1000
+  logging_steps: 100
+  output_dir: checkpoints/medium/
+  
+  # 최적화
+  mixed_precision: true  # FP16
+  gradient_checkpointing: false  # 메모리 충분하면 끄기 (속도 향상)
+  compile_model: true  # torch.compile 사용
+  
+  # 데이터 로딩
+  num_workers: 8
+  pin_memory: true
+  persistent_workers: true
+  prefetch_factor: 4
+
+optimizer:
+  type: adamw
+  betas: [0.9, 0.95]
+  eps: 1.0e-8
+
+# W&B 로깅 (선택)
+wandb:
+  enabled: false  # true로 변경하여 활성화
+  project: kr-mini-llm
+  name: medium-m4max
+  tags: [m4max, medium, 350m]
+
+# 예상 성능
+# - 학습 속도: 2-3 steps/sec
+# - 총 학습 시간: ~22시간
+# - 메모리 사용: ~10GB
+
+# Made with Bob

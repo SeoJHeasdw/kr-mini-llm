@@ -1,5 +1,18 @@
-# 학습 설정(예시)
-# - MacBook Air에서 시작할 때는 배치/시퀀스 길이를 작게 잡고 점진적으로 늘리세요.
+# ============================================================
+# LEGACY 설정 - MacBook Air 기반 (8-16GB RAM)
+# ============================================================
+#
+# 이 설정은 메모리가 제한적인 MacBook Air 환경을 위한 것입니다.
+# M4 Max (36GB RAM) 환경에서는 다음 설정을 사용하세요:
+# - Medium 모델: configs/training_m4max.yaml (권장)
+# - Large 모델: configs/training_m4max_large.yaml (도전)
+#
+# 용도:
+# - 메모리 제한 환경에서의 테스트
+# - 작은 모델 (model_small.yaml)과 함께 사용
+# - 프로토타입 개발
+#
+# ============================================================
 
 seed: 1337
 device: auto  # auto|cpu|mps|cuda
@@ -10,16 +23,30 @@ data:
   tokenizer_model: models/tokenizer.model
 
 train:
-  batch_size: 4
-  gradient_accumulation_steps: 8
-  max_seq_length: 512
+  # 메모리 제한 환경 설정
+  batch_size: 4                    # 작은 배치
+  gradient_accumulation_steps: 8   # Effective batch = 32
+  max_seq_length: 512              # 짧은 시퀀스
+  
+  # 옵티마이저
   learning_rate: 3.0e-4
   warmup_steps: 2000
   max_steps: 100000
   save_steps: 5000
   eval_steps: 1000
-  mixed_precision: true
-  gradient_checkpointing: true
+  
+  # 최적화
+  mixed_precision: true            # FP16
+  gradient_checkpointing: true     # 메모리 절약 필수
   output_dir: checkpoints/
+
+# 예상 성능 (model_small.yaml 기준):
+# - 메모리 사용: ~5-8GB
+# - 학습 속도: 2-3 steps/sec (MacBook Air)
+# - 총 학습 시간: ~10-15시간
+#
+# M4 Max 권장 설정:
+# - training_m4max.yaml: batch=16, seq=2048, no gradient checkpointing
+# - training_m4max_large.yaml: batch=8, seq=1536, gradient checkpointing
 
 

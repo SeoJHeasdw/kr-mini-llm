@@ -1,259 +1,252 @@
-# 빠른 시작 가이드
+# 빠른 시작 가이드 (M4 Max 최적화)
+
+> **하드웨어**: MacBook Pro 16" M4 Max (36GB RAM, 32-core GPU)
+> **목표**: 350M-1B 파라미터 한국어 LLM 구축
 
 ## 🚀 5분 안에 시작하기
 
-### 1. Repository 생성 및 클론
-```bash
-# GitHub에서 새 repository 생성
-gh repo create korean-tiny-llm --public --clone
+### 전제 조건
+- ✅ MacBook Pro M4 Max (36GB RAM 이상)
+- ✅ Python 3.13+
+- ✅ 20GB+ 디스크 여유 공간
 
-cd korean-tiny-llm
+### 1. 프로젝트 클론 (이미 완료된 경우 스킵)
+```bash
+cd kr-mini-llm
 ```
 
-### 2. 프로젝트 구조 자동 생성
+### 2. 프로젝트 구조 확인
 ```bash
-# 디렉토리 생성
-mkdir -p docs src/{model,data,training,inference} scripts tests configs
-
-# __init__.py 파일 생성
-touch src/__init__.py
-touch src/model/__init__.py
-touch src/data/__init__.py
-touch src/training/__init__.py
-touch src/inference/__init__.py
+# 이미 생성된 구조 확인
+ls -la configs/  # 설정 파일들
+ls -la src/      # 소스 코드
+ls -la docs/     # 문서
 ```
 
-### 3. requirements.txt 생성
+**주요 설정 파일:**
+- `configs/model_medium.yaml` - 468M 파라미터 (권장)
+- `configs/model_large.yaml` - 1004M 파라미터 (도전)
+- `configs/training_m4max.yaml` - Medium 모델 학습 설정
+- `configs/training_m4max_large.yaml` - Large 모델 학습 설정
+
+### 3. requirements.txt 확인
 ```bash
-cat > requirements.txt << 'EOF'
-# Core
-torch>=2.0.0
-numpy>=1.24.0
-tqdm>=4.65.0
-
-# NLP
-transformers>=4.30.0
-tokenizers>=0.13.0
-sentencepiece>=0.1.99
-
-# Data
-datasets>=2.12.0
-pyarrow>=12.0.0
-
-# Training
-wandb>=0.15.0
-pyyaml>=6.0
-
-# Development
-pytest>=7.3.0
-black>=23.3.0
-flake8>=6.0.0
-
-# Optional: Optimization
-# onnx>=1.14.0
-# onnxruntime>=1.15.0
-EOF
+cat requirements.txt
 ```
+
+**이미 포함된 주요 패키지:**
+- PyTorch 2.0+ (MPS 지원)
+- Transformers, Tokenizers
+- SentencePiece (한국어 토크나이저)
+- Weights & Biases (학습 모니터링)
 
 ### 4. 가상환경 설정 및 패키지 설치
 ```bash
+# 가상환경 생성
 python3 -m venv venv
+
+# 활성화
 source venv/bin/activate
+
+# 패키지 설치
 pip install --upgrade pip
 pip install -r requirements.txt
+
+# PyTorch MPS 지원 확인
+python3 -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'MPS available: {torch.backends.mps.is_available()}')"
 ```
 
-### 5. 기본 설정 파일 생성
-```bash
-# .gitignore
-cat > .gitignore << 'EOF'
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-venv/
-env/
-ENV/
-
-# Data
-data/raw/
-data/processed/
-*.bin
-*.pkl
-
-# Models
-checkpoints/
-models/
-*.pth
-*.pt
-
-# Logs
-logs/
-wandb/
-*.log
-
-# IDE
-.vscode/
-.idea/
-*.swp
-
-# OS
-.DS_Store
-EOF
+**예상 출력:**
+```
+PyTorch: 2.x.x
+MPS available: True
 ```
 
-### 6. README.md 생성
+### 5. 설정 테스트
 ```bash
-cat > README.md << 'EOF'
-# Korean Tiny LLM
-
-MacBook Air에서 학습 가능한 소형 한국어 텍스트 생성 모델
-
-## Features
-- 50M-150M 파라미터 경량 모델
-- 최신 Transformer 아키텍처 (RoPE, SwiGLU, GQA, RMSNorm)
-- MacBook 최적화 (M1/M2/M3)
-- 한국어 특화 토크나이저
-
-## Quick Start
-```bash
-# 설치
-pip install -r requirements.txt
-
-# 데이터 준비
-python scripts/prepare_data.py
-
-# 학습
-python scripts/train.py --config configs/training.yaml
-
-# 추론
-python scripts/generate.py --prompt "안녕하세요"
+# 설정 파일 로드 테스트
+python3 scripts/test_config.py
 ```
 
-## Project Structure
-See `docs/roadmap.md` for detailed information.
-
-## License
-MIT
-EOF
+**예상 출력:**
+```
+🎉 모든 테스트 통과!
+- ✅ Small 모델: ~134M 파라미터
+- ✅ Medium 모델: ~468M 파라미터
+- ✅ Large 모델: ~1004M 파라미터
 ```
 
-### 7. 첫 커밋
+### 6. 학습 스크립트 테스트
 ```bash
-git add .
-git commit -m "Initial project setup with structure and dependencies"
-git push -u origin main
+# Medium 모델 설정 확인
+python3 scripts/train.py \
+  --config configs/training_m4max.yaml \
+  --model_config configs/model_medium.yaml
+```
+
+**예상 출력:**
+```
+🚀 M4 Max Metal Performance Shaders (MPS) 사용
+   MPS 메모리 제한: 80%
+
+🤖 모델: 1024 hidden, 24 layers, 16 heads
+🏋️  학습: batch=16, effective_batch=64
+💻 디바이스: mps (MPS 최적화 활성화)
 ```
 
 ---
 
-## 📋 Phase별 상세 체크리스트
+## 📋 Phase별 체크리스트 (M4 Max 기준)
 
-### Phase 1: 프로젝트 셋업 ✅
+### Phase 1: 프로젝트 셋업 ✅ (완료)
 
-#### Day 1
-- [ ] GitHub repository 생성
-- [ ] 로컬 환경 클론
-- [ ] 디렉토리 구조 생성
-- [ ] requirements.txt 작성
-- [ ] 가상환경 설정 및 패키지 설치
-- [ ] .gitignore 설정
-- [ ] README.md 작성
-- [ ] 첫 커밋 및 푸시
+- [x] 프로젝트 구조 생성
+- [x] M4 Max 최적화 설정 파일 생성
+- [x] 문서 작성 (로드맵, 가이드)
+- [x] 테스트 스크립트 작성
+- [x] MPS 지원 추가
 
-#### Day 2
-- [ ] `docs/roadmap.md` 작성
-- [ ] `docs/architecture.md` 초안 작성
-- [ ] 모델 config 파일 작성 (`configs/model_small.yaml`)
-- [ ] 학습 config 파일 작성 (`configs/training.yaml`)
+**생성된 파일:**
+- `configs/model_medium.yaml`, `model_large.yaml`
+- `configs/training_m4max.yaml`, `training_m4max_large.yaml`
+- `src/model/config.py` (YAML 로드, 프리셋)
+- `scripts/train.py` (MPS 지원)
+- `scripts/test_config.py` (테스트)
 
 ---
 
-### Phase 2: 아키텍처 구현 🏗️
+### Phase 2: 아키텍처 구현 🏗️ (3-5일)
 
-#### Week 1, Day 3-4: Tokenizer
+**목표**: Medium 모델 (468M) 아키텍처 완성
+
+#### 우선순위 1: 핵심 레이어 (1-2일)
 ```bash
-# 작업 목록
-- [ ] src/data/tokenizer.py 구현
-  - [ ] SentencePiece 래퍼 클래스
-  - [ ] 한국어 normalizer
-  - [ ] Vocab 관리
-- [ ] scripts/train_tokenizer.py 구현
-- [ ] 샘플 데이터로 테스트
-- [ ] tests/test_tokenizer.py 작성
+# src/model/layers.py 구현
+- [ ] RMSNorm - Layer normalization 대체
+- [ ] RotaryPositionEmbedding (RoPE) - 위치 인코딩
+- [ ] SwiGLU - Feed-forward 활성화 함수
+
+# 테스트
+python3 -m pytest tests/test_layers.py -v
 ```
 
-**코드 스켈레톤**:
+**M4 Max 최적화 포인트:**
+- MPS 백엔드 호환성 확인
+- FP16 mixed precision 지원
+- torch.compile 적용 가능성
+
+#### 우선순위 2: Attention (1-2일)
+```bash
+# src/model/attention.py 구현
+- [ ] GroupedQueryAttention (GQA)
+  - num_heads=16, num_kv_heads=4 (Medium)
+  - num_heads=24, num_kv_heads=6 (Large)
+- [ ] KV cache 구현 (추론 최적화)
+- [ ] Causal masking
+
+# 메모리 프로파일링
+python3 scripts/profile_attention.py
+```
+
+**예상 메모리 (Medium):**
+- Attention weights: ~2GB
+- KV cache: ~1GB (추론 시)
+
+#### 우선순위 3: Transformer 통합 (1일)
+```bash
+# src/model/transformer.py 구현
+- [ ] TransformerBlock (Attention + FFN)
+- [ ] TransformerLM (전체 모델)
+- [ ] Forward/Backward pass 검증
+
+# 더미 데이터 테스트
+python3 scripts/test_model_forward.py
+```
+
+**검증 항목:**
+- [ ] 468M 파라미터 확인
+- [ ] MPS에서 forward pass 성공
+- [ ] Gradient 계산 정상
+- [ ] 메모리 사용량 ~10GB 이내
+
+---
+
+### Phase 3: 데이터 준비 📊 (2-3일)
+
+**목표**: 20-50GB 한국어 텍스트 데이터 확보
+
+#### 데이터 소스 (우선순위 순)
+
+**1. AI Hub (최우선)**
+```bash
+# https://aihub.or.kr
+- [ ] 일상대화 데이터 (~5GB)
+- [ ] 문서요약 데이터 (~3GB)
+- [ ] 뉴스 기사 데이터 (~10GB)
+```
+
+**2. Korean Wikipedia**
+```bash
+# 위키미디어 덤프
+wget https://dumps.wikimedia.org/kowiki/latest/kowiki-latest-pages-articles.xml.bz2
+bzip2 -d kowiki-latest-pages-articles.xml.bz2
+
+# 예상 크기: ~2GB (압축 해제 후 ~10GB)
+```
+
+**3. 나무위키 (선택)**
+```bash
+# 크롤링 필요 (robots.txt 확인)
+# 예상 크기: ~20GB
+```
+
+**4. 모두의 말뭉치 (국립국어원)**
+```bash
+# https://corpus.korean.go.kr
+- [ ] 신문 말뭉치
+- [ ] 문어 말뭉치
+```
+
+#### 데이터 전처리 (1일)
+```bash
+# scripts/prepare_data.py 실행
+python3 scripts/prepare_data.py \
+  --input data/raw/*.txt \
+  --output data/processed/ \
+  --min_length 10 \
+  --max_length 2048
+
+# 예상 처리 시간: 2-4시간 (M4 Max)
+```
+
+**전처리 단계:**
+1. HTML/XML 태그 제거
+2. 특수문자 정규화
+3. 중복 문장 제거
+4. Train/Val/Test 분할 (98/1/1)
+
+#### Tokenizer 학습 (1일)
+```bash
+# 32k vocab SentencePiece 학습
+python3 scripts/train_tokenizer.py \
+  --input data/processed/train.txt \
+  --vocab_size 32000 \
+  --model_type bpe \
+  --output models/tokenizer
+
+# 예상 학습 시간: 1-2시간
+```
+
+**검증:**
 ```python
-# src/data/tokenizer.py
-from sentencepiece import SentencePieceProcessor
+from src.data.tokenizer import KoreanTokenizer
 
-class KoreanTokenizer:
-    def __init__(self, model_path):
-        self.sp = SentencePieceProcessor()
-        self.sp.load(model_path)
-    
-    def encode(self, text):
-        # TODO: 구현
-        pass
-    
-    def decode(self, ids):
-        # TODO: 구현
-        pass
+tokenizer = KoreanTokenizer("models/tokenizer.model")
+text = "안녕하세요, M4 Max에서 학습하는 한국어 LLM입니다."
+tokens = tokenizer.encode(text)
+print(f"Tokens: {tokens}")
+print(f"Decoded: {tokenizer.decode(tokens)}")
 ```
-
-#### Week 1, Day 5-7: Core Model Components
-
-**Day 5: RoPE & RMSNorm**
-```bash
-- [ ] src/model/layers.py 구현
-  - [ ] RotaryPositionEmbedding 클래스
-  - [ ] RMSNorm 클래스
-- [ ] 단위 테스트
-```
-
-**Day 6: Attention Mechanism**
-```bash
-- [ ] src/model/attention.py 구현
-  - [ ] GroupedQueryAttention 클래스
-  - [ ] KV cache 준비
-- [ ] Shape 테스트
-```
-
-**Day 7: Transformer Block**
-```bash
-- [ ] src/model/transformer.py 구현
-  - [ ] TransformerBlock
-  - [ ] SwiGLU FFN
-  - [ ] 전체 모델 통합
-- [ ] Forward pass 테스트
-```
-
-#### Week 2, Day 8-9: 통합 및 테스트
-```bash
-- [ ] 모델 전체 통합
-- [ ] 더미 데이터로 forward/backward 테스트
-- [ ] 메모리 사용량 프로파일링
-- [ ] 문서 업데이트 (architecture.md)
-```
-
----
-
-### Phase 3: 데이터 준비 📊
-
-#### Week 2, Day 10-11: 데이터 수집
-```bash
-- [ ] 데이터 소스 리서치
-  - [ ] AI Hub 계정 생성 및 데이터 다운로드
-  - [ ] Korean Wikipedia 덤프 다운로드
-  - [ ] 라이선스 확인
-- [ ] data/raw/ 디렉토리에 저장
-- [ ] 데이터 품질 간단히 확인
-```
-
-**추천 다운로드 스크립트**:
 ```bash
 # scripts/download_data.sh
 #!/bin/bash
@@ -265,96 +258,142 @@ bzip2 -d kowiki-latest-pages-articles.xml.bz2
 # 나머지 소스는 수동 다운로드 또는 API 활용
 ```
 
-#### Week 2, Day 12: 전처리 파이프라인
+---
+
+### Phase 4: 학습 🏋️ (2-3주)
+
+**목표**: Medium 모델 200k steps 학습 완료 (~22시간)
+
+#### 학습 파이프라인 구축 (1-2일)
 ```bash
-- [ ] src/data/preprocessing.py 구현
-  - [ ] HTML/XML 파싱
-  - [ ] 텍스트 정제
-  - [ ] 문장 분리
-  - [ ] 중복 제거
-- [ ] scripts/prepare_data.py 통합
+# src/training/trainer.py 구현
+- [ ] Training loop (MPS 최적화)
+- [ ] Validation loop
+- [ ] Checkpoint 저장/로드
+- [ ] W&B 로깅 (선택)
+
+# src/training/optimizer.py
+- [ ] AdamW (betas=[0.9, 0.95])
+- [ ] Cosine learning rate scheduler
+- [ ] Gradient clipping (max_norm=1.0)
 ```
 
-#### Week 2, Day 13: Tokenizer 학습
+#### Sanity Check (1일)
 ```bash
-- [ ] 전처리된 데이터로 tokenizer 학습
-- [ ] vocab size 실험 (16k, 32k, 64k)
-- [ ] 한국어 토큰 분석
-- [ ] 최종 tokenizer 저장
+# 작은 데이터셋으로 overfitting 테스트
+python3 scripts/train.py \
+  --config configs/training_m4max.yaml \
+  --model_config configs/model_medium.yaml \
+  --max_steps 1000 \
+  --data_size 1MB
+
+# 확인 사항:
+- [ ] Loss가 0에 가까워지는가?
+- [ ] 메모리 사용량 ~10GB 이내?
+- [ ] 학습 속도 2-3 steps/sec?
 ```
 
-#### Week 2, Day 14: Dataset 클래스
+#### 본격 학습 (Medium 모델)
 ```bash
-- [ ] src/data/dataset.py 구현
-  - [ ] PyTorch Dataset 상속
-  - [ ] 효율적 데이터 로딩
-  - [ ] Collate function
-- [ ] Train/Val split
-- [ ] DataLoader 테스트
+# 학습 시작
+python3 scripts/train.py \
+  --config configs/training_m4max.yaml \
+  --model_config configs/model_medium.yaml
+
+# 예상 시간: ~22시간 (200k steps)
+# 예상 메모리: ~10-15GB
+# 학습 속도: 2-3 steps/sec
+```
+
+**M4 Max 최적화 설정 (이미 적용됨):**
+- ✅ Batch size: 16
+- ✅ Gradient accumulation: 4 (effective batch=64)
+- ✅ Sequence length: 2048
+- ✅ Mixed precision: FP16
+- ✅ Gradient checkpointing: OFF (속도 우선)
+- ✅ torch.compile: ON
+- ✅ MPS 메모리 제한: 80%
+
+#### 학습 모니터링
+```bash
+# W&B 대시보드 (선택)
+# configs/training_m4max.yaml에서 wandb.enabled: true
+
+# 로컬 모니터링
+tail -f checkpoints/medium/train.log
+
+# 체크포인트 확인
+ls -lh checkpoints/medium/checkpoint-*
+```
+
+**일일 체크리스트:**
+- [ ] Training loss 감소 추세?
+- [ ] Validation perplexity < 20?
+- [ ] MPS 메모리 사용률 < 80%?
+- [ ] 생성 샘플 품질 개선?
+- [ ] Gradient norm 안정적? (< 5.0)
+
+**주간 체크리스트:**
+- [ ] Checkpoint 평가 (5k steps마다)
+- [ ] Learning rate 조정 필요?
+- [ ] 데이터 추가 필요?
+- [ ] Early stopping 고려?
+
+#### 학습 재개 (중단 시)
+```bash
+python3 scripts/train.py \
+  --config configs/training_m4max.yaml \
+  --model_config configs/model_medium.yaml \
+  --resume_from checkpoints/medium/checkpoint-50000
 ```
 
 ---
 
-### Phase 4: 학습 🏋️
+### Phase 5: 추론 최적화 🚀 (2-3일)
 
-#### Week 3, Day 15-16: 학습 파이프라인 구축
+**목표**: 추론 속도 > 50 tokens/sec (Medium)
+
+#### 기본 추론 구현 (1일)
 ```bash
-- [ ] src/training/trainer.py 구현
-  - [ ] Training loop
-  - [ ] Validation loop
-  - [ ] Checkpoint 저장/로드
-  - [ ] Logging
-- [ ] src/training/optimizer.py
-  - [ ] AdamW with warmup
-  - [ ] Learning rate scheduler
-- [ ] scripts/train.py 완성
+# src/inference/generator.py 구현
+- [ ] Greedy decoding
+- [ ] Top-k/Top-p sampling
+- [ ] Temperature scaling
+- [ ] KV cache (메모리 효율)
+
+# 테스트
+python3 scripts/generate.py \
+  --checkpoint checkpoints/medium/final \
+  --prompt "안녕하세요, M4 Max에서" \
+  --max_length 100
 ```
 
-#### Week 3, Day 17: Sanity Check
+#### 추론 최적화 (1일)
 ```bash
-- [ ] 작은 데이터셋(1MB)으로 overfitting 테스트
-  - [ ] Loss가 0에 가까워지는지 확인
-  - [ ] 생성 품질 확인
-- [ ] 버그 수정
-- [ ] 하이퍼파라미터 초기 튜닝
+# 최적화 기법
+- [ ] KV cache 구현 (필수)
+- [ ] torch.compile 적용
+- [ ] Batch inference 지원
+- [ ] MPS 최적화
+
+# 벤치마크
+python3 scripts/benchmark_inference.py
 ```
 
-#### Week 3-4, Day 18-28: 본격 학습
+**예상 성능 (Medium, M4 Max):**
+- Tokens/sec: 50-80
+- Latency (첫 토큰): < 100ms
+- Memory: ~5GB
+
+#### Interactive Demo (선택)
 ```bash
-# 매일
-- [ ] 학습 진행 모니터링
-- [ ] Loss 트렌드 확인
-- [ ] 생성 샘플 평가
-- [ ] 이상 현상 대응
+# Gradio 웹 인터페이스
+pip install gradio
+python3 scripts/demo.py --port 7860
 
-# 주간
-- [ ] Checkpoint 평가
-- [ ] Validation perplexity 확인
-- [ ] 하이퍼파라미터 조정
+# 또는 CLI
+python3 scripts/chat.py
 ```
-
-**학습 모니터링 체크리스트**:
-```
-일일 체크:
-□ Training loss 감소 중?
-□ Gradient norm 안정적?
-□ GPU/Memory 사용률?
-□ 생성 샘플 품질 개선?
-
-주간 체크:
-□ Validation loss plateau?
-□ Learning rate 조정 필요?
-□ 데이터 추가 필요?
-□ Early stopping 고려?
-```
-
----
-
-### Phase 5: 추론 최적화 🚀
-
-#### Week 5, Day 29-30: 기본 추론
-```bash
-- [ ] src/inference/generator.py 구현
   - [ ] Greedy decoding
   - [ ] Top-k/Top-p sampling
   - [ ] Temperature scaling

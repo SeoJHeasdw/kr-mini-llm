@@ -1,11 +1,11 @@
 # 한국어 LLM 프로젝트 로드맵
 
 ## 프로젝트 개요
-MacBook Air에서 구동 가능한 소형 한국어 텍스트 생성 LLM 구축
+MacBook Pro 16" M4 Max에서 구동 가능한 중형 한국어 텍스트 생성 LLM 구축
 
 **목표 스펙**
-- 모델 크기: 50M-150M 파라미터
-- 타겟 디바이스: MacBook Air (M1/M2/M3)
+- 모델 크기: 300M-800M 파라미터 (Medium: 350M, Large: 800M)
+- 타겟 디바이스: MacBook Pro 16" M4 Max (36GB RAM, 32-core GPU)
 - 언어: 한국어 텍스트 생성
 - 아키텍처: 최신 Transformer 변형 (RoPE, SwiGLU, RMSNorm, GQA)
 
@@ -81,16 +81,32 @@ git commit -m "Initial project structure"
 - 하이퍼파라미터 결정
 - 메모리 사용량 계산
 
-**추천 모델 설정 (Small)**
+**추천 모델 설정 (Medium - M4 Max 최적화)**
 ```yaml
 vocab_size: 32000
-hidden_size: 768
-num_layers: 12
-num_heads: 12
+hidden_size: 1024
+num_layers: 24
+num_heads: 16
 num_kv_heads: 4  # GQA
-intermediate_size: 2048  # SwiGLU
-max_seq_length: 1024
+intermediate_size: 4096  # SwiGLU
+max_seq_length: 2048
 rope_theta: 10000.0
+dropout: 0.1
+# 예상 파라미터: ~350M
+```
+
+**선택 모델 설정 (Large - 공격적)**
+```yaml
+vocab_size: 32000
+hidden_size: 1536
+num_layers: 24
+num_heads: 24
+num_kv_heads: 6  # GQA
+intermediate_size: 6144  # SwiGLU
+max_seq_length: 2048
+rope_theta: 10000.0
+dropout: 0.1
+# 예상 파라미터: ~800M
 ```
 
 ### 2.2 핵심 컴포넌트 구현
@@ -177,20 +193,23 @@ python scripts/train_tokenizer.py \
 
 ### 4.1 학습 설정
 
-**MacBook Air 최적화**
+**M4 Max 최적화 (Medium 모델)**
 ```yaml
-# configs/training.yaml
-batch_size: 4  # Gradient accumulation으로 증가
-gradient_accumulation_steps: 8  # Effective batch = 32
-max_seq_length: 512  # 초기에는 짧게
-learning_rate: 3e-4
-warmup_steps: 2000
-max_steps: 100000
+# configs/training_m4max.yaml
+batch_size: 16  # 36GB 메모리 활용
+gradient_accumulation_steps: 4  # Effective batch = 64
+max_seq_length: 2048  # 긴 컨텍스트
+learning_rate: 2e-4  # 큰 모델은 낮은 LR
+warmup_steps: 4000
+max_steps: 200000  # 더 긴 학습
 save_steps: 5000
 eval_steps: 1000
 fp16: true  # Mixed precision
-gradient_checkpointing: true  # 메모리 절약
+gradient_checkpointing: false  # 메모리 충분하면 끄기 (속도 향상)
+device: mps  # Metal Performance Shaders
 ```
+
+**예상 학습 시간**: ~22시간 (Medium), ~44시간 (Large)
 
 ### 4.2 학습 실행
 ```bash
@@ -341,23 +360,26 @@ print(text)
 
 ## ⚠️ 주의사항 및 팁
 
-### MacBook Air 제약사항
-- **열 관리**: 장시간 학습 시 쿨링 패드 권장
-- **배치 크기**: 메모리 오류 시 줄이기
-- **전원 연결**: 학습 중 반드시 전원 연결
+### M4 Max 최적화 전략
+- **열 관리**: 장시간 학습 시 쿨링 패드 권장 (고성능 유지)
+- **메모리 활용**: 36GB 중 ~30GB까지 사용 가능
+- **전원 연결**: 학습 중 반드시 전원 연결 (고성능 모드)
 - **백그라운드 앱**: 학습 중 다른 앱 최소화
+- **MPS 백엔드**: PyTorch 2.1+ 사용 권장
 
 ### 시간 절약 팁
-- 작은 모델부터 시작 (50M)
+- Medium 모델부터 시작 (350M)
 - 전체 파이프라인 먼저 검증
-- Pretrained embedding 활용 고려
-- 학습 데이터 점진적 증가
+- 충분한 데이터 확보 (20-50GB)
+- 학습 모니터링 자동화 (W&B)
+- Checkpoint averaging 활용
 
 ### 일반적 문제 해결
-- **OOM Error**: batch_size 감소, gradient_checkpointing 활성화
-- **Slow Training**: Mixed precision 사용, 데이터 로딩 최적화
-- **Poor Quality**: 더 많은 데이터, 더 긴 학습
-- **Divergence**: Learning rate 감소, Gradient clipping
+- **OOM Error**: batch_size 감소 (16→8), gradient_checkpointing 활성화
+- **Slow Training**: torch.compile 사용, num_workers 증가 (8개)
+- **Poor Quality**: 더 많은 데이터 (50GB+), 더 긴 학습 (200k+ steps)
+- **Divergence**: Learning rate 감소 (2e-4→1e-4), Gradient clipping (1.0)
+- **MPS Issues**: PyTorch 업데이트, CPU fallback 고려
 
 ---
 
