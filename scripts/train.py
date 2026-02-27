@@ -1,239 +1,261 @@
-from __future__ import annotations
-
+#!/usr/bin/env python3
 """
-학습 엔트리포인트 (M4 Max 최적화).
+모델 학습 스크립트
 
-M4 Max의 Metal Performance Shaders (MPS)를 활용한 학습 스크립트.
-Phase 4에서 본격 학습 루프/체크포인트/로깅을 구현합니다.
+사용 예시:
+  # 토큰화된 데이터로 학습 (권장)
+  python scripts/train.py \\
+      --model_config configs/model_medium.yaml \\
+      --training_config configs/training_m4max.yaml \\
+      --train_data data/processed/train_tokens.npy \\
+      --valid_data data/processed/valid_tokens.npy \\
+      --output_dir checkpoints/medium \\
+      --device mps
+  
+  # 텍스트 파일로 학습 (느림, 권장하지 않음)
+  python scripts/train.py \\
+      --model_config configs/model_small.yaml \\
+      --training_config configs/training.yaml \\
+      --train_data data/processed/train.txt \\
+      --valid_data data/processed/valid.txt \\
+      --tokenizer models/tokenizer.model \\
+      --output_dir checkpoints/small \\
+      --device mps \\
+      --no_tokenized
 """
 
 import argparse
 import sys
 from pathlib import Path
-from typing import Optional
-
-import torch
 import yaml
+import torch
 
+# 프로젝트 루트를 Python 경로에 추가
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 
-def setup_device(device_name: str = "auto") -> torch.device:
-    """
-    학습에 사용할 디바이스 설정
-    
-    Args:
-        device_name: "auto", "mps", "cuda", "cpu" 중 하나
-        
-    Returns:
-        torch.device 객체
-    """
-    if device_name == "auto":
-        # 자동 감지: MPS > CUDA > CPU
-        if torch.backends.mps.is_available():
-            device = torch.device("mps")
-            print("🚀 M4 Max Metal Performance Shaders (MPS) 사용")
-        elif torch.cuda.is_available():
-            device = torch.device("cuda")
-            print(f"🚀 CUDA 사용 (GPU: {torch.cuda.get_device_name(0)})")
-        else:
-            device = torch.device("cpu")
-            print("⚠️  CPU 사용 (학습 속도가 느릴 수 있습니다)")
-    else:
-        device = torch.device(device_name)
-        print(f"🚀 디바이스: {device}")
-    
-    # MPS 메모리 최적화
-    if device.type == "mps":
-        try:
-            # MPS 메모리의 80%까지 사용 (시스템 안정성 유지)
-            torch.mps.set_per_process_memory_fraction(0.8)
-            print("   MPS 메모리 제한: 80%")
-        except Exception as e:
-            print(f"   MPS 메모리 설정 실패 (무시): {e}")
-    
-    return device
-
-
-def check_pytorch_version() -> None:
-    """PyTorch 버전 확인 및 경고"""
-    version = torch.__version__
-    major, minor = map(int, version.split('.')[:2])
-    
-    print(f"📦 PyTorch 버전: {version}")
-    
-    if major < 2:
-        print("⚠️  경고: PyTorch 2.0+ 권장 (torch.compile 지원)")
-    
-    if torch.backends.mps.is_available():
-        print("✅ MPS 백엔드 사용 가능")
-        if major == 2 and minor < 1:
-            print("⚠️  경고: PyTorch 2.1+ 권장 (MPS 안정성 향상)")
-    else:
-        print("❌ MPS 백엔드 사용 불가")
+from src.model.config import TransformerConfig
+from src.model.transformer import TransformerLM
+from src.data.tokenizer import KoreanTokenizer
+from src.data.dataset import create_dataloaders
+from src.training.trainer import Trainer
+from src.training.optimizer import create_optimizer
 
 
 def load_config(config_path: str) -> dict:
     """YAML 설정 파일 로드"""
-    path = Path(config_path)
-    if not path.exists():
-        raise FileNotFoundError(f"설정 파일을 찾을 수 없습니다: {config_path}")
-    
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(config_path, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f)
 
 
-def validate_config(cfg: dict) -> None:
-    """설정 검증"""
-    required_keys = ['seed', 'device', 'data', 'train']
-    for key in required_keys:
-        if key not in cfg:
-            raise ValueError(f"필수 설정 키가 없습니다: {key}")
-    
-    # 학습 설정 검증
-    train_cfg = cfg['train']
-    required_train_keys = ['batch_size', 'learning_rate', 'max_steps']
-    for key in required_train_keys:
-        if key not in train_cfg:
-            raise ValueError(f"필수 학습 설정 키가 없습니다: train.{key}")
-
-
-def print_training_info(cfg: dict, model_cfg: dict, device: torch.device) -> None:
-    """학습 정보 출력"""
-    print("\n" + "="*60)
-    print("📊 학습 설정 정보")
-    print("="*60)
-    
-    # 모델 정보
-    print(f"\n🤖 모델:")
-    print(f"   - Hidden size: {model_cfg.get('hidden_size', 'N/A')}")
-    print(f"   - Layers: {model_cfg.get('num_layers', 'N/A')}")
-    print(f"   - Heads: {model_cfg.get('num_heads', 'N/A')}")
-    print(f"   - Vocab size: {model_cfg.get('vocab_size', 'N/A')}")
-    
-    # 학습 설정
-    train_cfg = cfg['train']
-    print(f"\n🏋️  학습:")
-    print(f"   - Batch size: {train_cfg.get('batch_size', 'N/A')}")
-    print(f"   - Gradient accumulation: {train_cfg.get('gradient_accumulation_steps', 'N/A')}")
-    effective_batch = train_cfg.get('batch_size', 0) * train_cfg.get('gradient_accumulation_steps', 1)
-    print(f"   - Effective batch size: {effective_batch}")
-    print(f"   - Learning rate: {train_cfg.get('learning_rate', 'N/A')}")
-    print(f"   - Max steps: {train_cfg.get('max_steps', 'N/A'):,}")
-    print(f"   - Mixed precision: {train_cfg.get('mixed_precision', False)}")
-    print(f"   - Gradient checkpointing: {train_cfg.get('gradient_checkpointing', False)}")
-    print(f"   - Compile model: {train_cfg.get('compile_model', False)}")
-    
-    # 디바이스 정보
-    print(f"\n💻 디바이스:")
-    print(f"   - Device: {device}")
-    if device.type == "mps":
-        print(f"   - MPS 최적화: 활성화")
-    
-    # 데이터 정보
-    data_cfg = cfg.get('data', {})
-    print(f"\n📁 데이터:")
-    print(f"   - Train: {data_cfg.get('train_path', 'N/A')}")
-    print(f"   - Valid: {data_cfg.get('valid_path', 'N/A')}")
-    print(f"   - Tokenizer: {data_cfg.get('tokenizer_model', 'N/A')}")
-    
-    print("\n" + "="*60 + "\n")
-
-
-def main() -> None:
-    ap = argparse.ArgumentParser(
-        description="kr-mini-llm 학습 스크립트 (M4 Max 최적화)"
+def main():
+    parser = argparse.ArgumentParser(
+        description="한국어 LLM 학습",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__
     )
-    ap.add_argument(
-        "--config",
-        type=str,
-        default="configs/training_m4max.yaml",
-        help="학습 설정 파일 (YAML)"
-    )
-    ap.add_argument(
+    
+    # 필수 인자
+    parser.add_argument(
         "--model_config",
         type=str,
-        default="configs/model_medium.yaml",
+        required=True,
         help="모델 설정 파일 (YAML)"
     )
-    ap.add_argument(
+    parser.add_argument(
+        "--training_config",
+        type=str,
+        required=True,
+        help="학습 설정 파일 (YAML)"
+    )
+    parser.add_argument(
+        "--train_data",
+        type=str,
+        required=True,
+        help="학습 데이터 파일 (.npy 또는 .txt)"
+    )
+    parser.add_argument(
+        "--valid_data",
+        type=str,
+        required=True,
+        help="검증 데이터 파일 (.npy 또는 .txt)"
+    )
+    parser.add_argument(
         "--output_dir",
         type=str,
-        default=None,
-        help="출력 디렉토리 (설정 파일의 값을 오버라이드)"
+        required=True,
+        help="체크포인트 저장 디렉토리"
     )
-    ap.add_argument(
-        "--resume_from",
+    
+    # 선택 인자
+    parser.add_argument(
+        "--tokenizer",
         type=str,
         default=None,
-        help="체크포인트에서 학습 재개"
+        help="토크나이저 모델 파일 (텍스트 파일 사용 시 필요)"
     )
-    args = ap.parse_args()
-
-    # PyTorch 버전 확인
-    check_pytorch_version()
+    parser.add_argument(
+        "--device",
+        type=str,
+        default=None,
+        help="디바이스 (cuda, mps, cpu). 기본값: 자동 선택"
+    )
+    parser.add_argument(
+        "--resume",
+        type=str,
+        default=None,
+        help="재개할 체크포인트 경로"
+    )
+    parser.add_argument(
+        "--no_tokenized",
+        action="store_true",
+        help="토큰화된 파일 대신 텍스트 파일 사용"
+    )
+    parser.add_argument(
+        "--streaming",
+        action="store_true",
+        help="스트리밍 모드 사용 (텍스트 파일만)"
+    )
+    
+    args = parser.parse_args()
     
     # 설정 로드
-    print(f"\n📄 설정 파일 로드 중...")
-    try:
-        cfg = load_config(args.config)
-        model_cfg = load_config(args.model_config)
-        print(f"   ✅ 학습 설정: {args.config}")
-        print(f"   ✅ 모델 설정: {args.model_config}")
-    except Exception as e:
-        print(f"   ❌ 설정 로드 실패: {e}")
-        sys.exit(1)
-    
-    # 설정 검증
-    try:
-        validate_config(cfg)
-    except ValueError as e:
-        print(f"❌ 설정 검증 실패: {e}")
-        sys.exit(1)
+    print("📋 설정 로딩...")
+    model_config_dict = load_config(args.model_config)
+    training_config = load_config(args.training_config)
     
     # 디바이스 설정
-    device = setup_device(cfg.get('device', 'auto'))
-    
-    # 출력 디렉토리 설정
-    if args.output_dir:
-        output_dir = Path(args.output_dir)
+    if args.device:
+        device = torch.device(args.device)
     else:
-        output_dir = Path(cfg['train'].get('output_dir', 'checkpoints/'))
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            device = torch.device("mps")
+        else:
+            device = torch.device("cpu")
     
-    output_dir.mkdir(parents=True, exist_ok=True)
-    print(f"📂 출력 디렉토리: {output_dir}")
+    print(f"🖥️  디바이스: {device}")
     
-    # 학습 정보 출력
-    print_training_info(cfg, model_cfg, device)
+    # 토크나이저 로드 (텍스트 파일 사용 시)
+    tokenizer = None
+    if args.no_tokenized or args.streaming:
+        if not args.tokenizer:
+            raise ValueError("텍스트 파일 사용 시 --tokenizer 필요")
+        print(f"🔤 토크나이저 로딩: {args.tokenizer}")
+        tokenizer = KoreanTokenizer(args.tokenizer)
+        vocab_size = tokenizer.vocab_size
+    else:
+        # 토큰화된 파일 사용 시 vocab_size는 모델 설정에서 가져옴
+        vocab_size = model_config_dict['vocab_size']
     
-    # Seed 설정
-    seed = cfg.get('seed', 1337)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-    print(f"🎲 Random seed: {seed}")
+    # 모델 설정 (TransformerConfig 사용)
+    model_config = TransformerConfig(
+        vocab_size=vocab_size,
+        hidden_size=model_config_dict.get('d_model', model_config_dict.get('hidden_size', 1024)),
+        num_layers=model_config_dict.get('n_layers', model_config_dict.get('num_layers', 24)),
+        num_heads=model_config_dict.get('n_heads', model_config_dict.get('num_heads', 16)),
+        num_kv_heads=model_config_dict.get('n_kv_heads', model_config_dict.get('num_kv_heads', 4)),
+        intermediate_size=model_config_dict.get('d_ff', model_config_dict.get('intermediate_size', 4096)),
+        max_seq_length=model_config_dict.get('max_seq_len', model_config_dict.get('max_seq_length', 2048)),
+        dropout=model_config_dict.get('dropout', 0.1),
+        rope_theta=model_config_dict.get('rope_theta', 10000.0),
+    )
     
-    print("\n" + "="*60)
-    print("⚠️  Phase 2-4 구현 필요")
-    print("="*60)
-    print("다음 단계:")
-    print("1. src/model/* - 모델 아키텍처 구현 (RoPE, GQA, SwiGLU)")
-    print("2. src/data/* - 데이터 파이프라인 구현")
-    print("3. src/training/* - 학습 루프 구현")
-    print("4. 이 스크립트에서 학습 루프 연결")
-    print("="*60 + "\n")
+    print(f"\n📊 모델 설정:")
+    print(f"   - Vocab size: {model_config.vocab_size:,}")
+    print(f"   - Hidden size: {model_config.hidden_size}")
+    print(f"   - Layers: {model_config.num_layers}")
+    print(f"   - Heads: {model_config.num_heads}")
+    print(f"   - KV heads: {model_config.num_kv_heads}")
+    print(f"   - Max seq len: {model_config.max_seq_length}")
     
-    # 설정 저장
-    config_save_path = output_dir / "config.yaml"
-    with open(config_save_path, 'w', encoding='utf-8') as f:
-        yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True)
-    print(f"💾 설정 저장: {config_save_path}")
+    # 데이터로더 생성
+    print(f"\n📦 데이터로더 생성...")
     
-    model_config_save_path = output_dir / "model_config.yaml"
-    with open(model_config_save_path, 'w', encoding='utf-8') as f:
-        yaml.dump(model_cfg, f, default_flow_style=False, allow_unicode=True)
-    print(f"💾 모델 설정 저장: {model_config_save_path}")
+    use_tokenized = not args.no_tokenized
+    
+    train_loader, valid_loader = create_dataloaders(
+        train_data=args.train_data,
+        valid_data=args.valid_data,
+        tokenizer=tokenizer,
+        batch_size=training_config['batch_size'],
+        max_length=model_config.max_seq_length,
+        num_workers=training_config.get('num_workers', 4),
+        use_tokenized=use_tokenized,
+        streaming=args.streaming,
+    )
+    
+    print(f"   ✅ 학습 배치: {len(train_loader):,}")
+    print(f"   ✅ 검증 배치: {len(valid_loader):,}")
+    
+    # 모델 생성
+    print(f"\n🏗️  모델 생성...")
+    model = TransformerLM(model_config)
+    
+    # 파라미터 수 계산
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    
+    print(f"   - 총 파라미터: {total_params:,}")
+    print(f"   - 학습 가능: {trainable_params:,}")
+    print(f"   - 크기: {total_params * 4 / 1024**2:.1f} MB (FP32)")
+    
+    # Optimizer 생성
+    print(f"\n⚙️  Optimizer 생성...")
+    optimizer = create_optimizer(
+        model=model,
+        lr=training_config['learning_rate'],
+        weight_decay=training_config.get('weight_decay', 0.01),
+        betas=(0.9, 0.95),
+        eps=1e-8,
+    )
+    
+    # Trainer 생성
+    print(f"\n🎯 Trainer 초기화...")
+    trainer = Trainer(
+        model=model,
+        train_loader=train_loader,
+        valid_loader=valid_loader,
+        optimizer=optimizer,
+        device=str(device),
+        output_dir=args.output_dir,
+        max_steps=training_config.get('max_steps', 100000),
+        eval_steps=training_config.get('eval_interval', 1000),
+        save_steps=training_config.get('save_interval', 5000),
+        logging_steps=training_config.get('logging_steps', 100),
+        gradient_accumulation_steps=training_config.get('gradient_accumulation_steps', 1),
+        max_grad_norm=training_config.get('max_grad_norm', 1.0),
+        use_amp=training_config.get('use_amp', True),
+        warmup_steps=training_config.get('warmup_steps', 2000),
+        lr_scheduler_type=training_config.get('lr_scheduler_type', 'cosine'),
+        resume_from=args.resume,
+    )
+    
+    # 학습 시작
+    print(f"\n🚀 학습 시작!")
+    print(f"   - 출력 디렉토리: {args.output_dir}")
+    print(f"   - 배치 크기: {training_config['batch_size']}")
+    print(f"   - Gradient accumulation: {training_config.get('gradient_accumulation_steps', 1)}")
+    print(f"   - 유효 배치 크기: {training_config['batch_size'] * training_config.get('gradient_accumulation_steps', 1)}")
+    print(f"   - Learning rate: {training_config['learning_rate']}")
+    print(f"   - Warmup steps: {training_config.get('warmup_steps', 2000)}")
+    print(f"   - Mixed precision: {training_config.get('use_amp', True)}")
+    print()
+    
+    try:
+        trainer.train()
+        print("\n✅ 학습 완료!")
+    except KeyboardInterrupt:
+        print("\n⚠️  학습 중단됨")
+        print(f"   체크포인트 저장 위치: {args.output_dir}")
+    except Exception as e:
+        print(f"\n❌ 학습 중 오류 발생: {e}")
+        raise
 
 
 if __name__ == "__main__":
     main()
 
 
+# Made with Bob

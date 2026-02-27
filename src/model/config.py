@@ -177,3 +177,37 @@ class TransformerConfig:
         )
 
 
+# Alias for compatibility with new naming convention
+@dataclass
+class ModelConfig:
+    """
+    모델 설정 (새로운 명명 규칙)
+    
+    TransformerConfig와 호환되는 인터페이스 제공
+    """
+    vocab_size: int = 32000
+    d_model: int = 1024  # hidden_size와 동일
+    n_layers: int = 24   # num_layers와 동일
+    n_heads: int = 16    # num_heads와 동일
+    n_kv_heads: int = 4  # num_kv_heads와 동일
+    d_ff: int = 4096     # intermediate_size와 동일
+    max_seq_len: int = 2048  # max_seq_length와 동일
+    rope_theta: float = 10000.0
+    dropout: float = 0.1
+    
+    def to_transformer_config(self) -> TransformerConfig:
+        """TransformerConfig로 변환"""
+        return TransformerConfig(
+            vocab_size=self.vocab_size,
+            hidden_size=self.d_model,
+            num_layers=self.n_layers,
+            num_heads=self.n_heads,
+            num_kv_heads=self.n_kv_heads,
+            intermediate_size=self.d_ff,
+            max_seq_length=self.max_seq_len,
+            rope_theta=self.rope_theta,
+            dropout=self.dropout,
+        )
+
+
+# Made with Bob
