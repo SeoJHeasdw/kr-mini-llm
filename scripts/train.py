@@ -180,7 +180,7 @@ def main():
         valid_data=args.valid_data,
         tokenizer=tokenizer,
         batch_size=training_config['batch_size'],
-        max_length=model_config.max_seq_length,
+        max_length=model_config.max_seq_len,
         num_workers=training_config.get('num_workers', 4),
         use_tokenized=use_tokenized,
         streaming=args.streaming,
@@ -258,4 +258,4 @@ if __name__ == "__main__":
     main()
 
 
-# Made with Bob
+

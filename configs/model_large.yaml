@@ -18,4 +18,4 @@ dropout: 0.1
 # - 추론 속도: > 30 tokens/sec
 # - Validation PPL: < 12
 
-# Made with Bob
+
