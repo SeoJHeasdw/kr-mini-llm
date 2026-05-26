@@ -1,0 +1,20 @@
+# 빠른 테스트용 프로파일
+# 사용법: python scripts/train.py --profile quick_test
+
+model:
+  config: configs/model_small.yaml
+
+training:
+  config: configs/training_m4max.yaml
+
+data:
+  train: data/kullm/tokenized.npy
+  valid: data/kullm/tokenized.npy
+  tokenizer: tokenizer/korean_tokenizer.model
+
+output:
+  dir: checkpoints/quick_test
+
+device: mps
+
+# Made with Bob

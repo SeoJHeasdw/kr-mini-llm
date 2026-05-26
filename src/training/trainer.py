@@ -211,9 +211,10 @@ class Trainer:
                 elapsed = time.time() - start_time
                 avg_loss = total_loss / self.logging_steps
                 tokens_per_sec = total_tokens / elapsed
+                progress = (self.global_step / self.max_steps) * 100
                 
                 print(
-                    f"Step {self.global_step:,}/{self.max_steps:,} | "
+                    f"Step {self.global_step:,}/{self.max_steps:,} ({progress:.1f}%) | "
                     f"Loss: {avg_loss:.4f} | "
                     f"LR: {self._get_lr():.2e} | "
                     f"Tokens/s: {tokens_per_sec:.0f} | "
@@ -224,6 +225,11 @@ class Trainer:
                 total_loss = 0.0
                 total_tokens = 0
                 start_time = time.time()
+            elif self.global_step <= 10 or self.global_step % 10 == 0:
+                # 초반 10 step과 이후 10 step마다 간단한 진행 상황 출력
+                elapsed = time.time() - start_time
+                progress = (self.global_step / self.max_steps) * 100
+                print(f"⏳ Step {self.global_step:,}/{self.max_steps:,} ({progress:.2f}%)", end='\r', flush=True)
             
             # 검증
             if self.global_step % self.eval_steps == 0:

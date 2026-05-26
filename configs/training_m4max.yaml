@@ -9,11 +9,11 @@ data:
   tokenizer_model: models/tokenizer.model
 
 train:
-  # 배치 설정
-  batch_size: 16
-  gradient_accumulation_steps: 4
-  effective_batch_size: 64  # 16 * 4
-  max_seq_length: 2048
+  # 배치 설정 (메모리 효율 최적화)
+  batch_size: 8  # 16 -> 8 (적당한 감소)
+  gradient_accumulation_steps: 8  # 4 -> 8 (effective batch 유지)
+  effective_batch_size: 64  # 8 * 8
+  max_seq_length: 1536  # 2048 -> 1536 (적당한 감소)
   
   # 옵티마이저
   learning_rate: 2.0e-4
@@ -37,11 +37,11 @@ train:
   gradient_checkpointing: false  # 메모리 충분하면 끄기 (속도 향상)
   compile_model: true  # torch.compile 사용
   
-  # 데이터 로딩
-  num_workers: 8
-  pin_memory: true
-  persistent_workers: true
-  prefetch_factor: 4
+  # 데이터 로딩 (메모리 효율 최적화)
+  num_workers: 2  # 8 -> 2 (메모리 절약)
+  pin_memory: false  # MPS는 pin_memory 미지원
+  persistent_workers: false  # 메모리 절약
+  prefetch_factor: 2  # 4 -> 2 (메모리 절약)
 
 optimizer:
   type: adamw

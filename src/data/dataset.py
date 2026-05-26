@@ -194,7 +194,7 @@ class StreamingTextDataset(Dataset):
         return torch.tensor(tokens, dtype=torch.long)
 
 
-def collate_fn(batch: List[torch.Tensor]) -> tuple:
+def collate_fn(batch: List[torch.Tensor]) -> dict:
     """
     배치 생성 함수
     
@@ -204,9 +204,10 @@ def collate_fn(batch: List[torch.Tensor]) -> tuple:
         batch: 토큰 시퀀스 리스트
     
     Returns:
-        input_ids: [batch_size, max_seq_len] 입력 토큰
-        attention_mask: [batch_size, max_seq_len] 어텐션 마스크
-        labels: [batch_size, max_seq_len] 레이블 (input_ids와 동일)
+        dict with keys:
+            - input_ids: [batch_size, max_seq_len] 입력 토큰
+            - attention_mask: [batch_size, max_seq_len] 어텐션 마스크
+            - labels: [batch_size, max_seq_len] 레이블 (input_ids와 동일)
     """
     # 최대 길이 찾기
     max_len = max(len(seq) for seq in batch)
@@ -239,7 +240,11 @@ def collate_fn(batch: List[torch.Tensor]) -> tuple:
     # 레이블은 input_ids와 동일 (언어 모델링)
     labels = input_ids.clone()
     
-    return input_ids, attention_mask, labels
+    return {
+        'input_ids': input_ids,
+        'attention_mask': attention_mask,
+        'labels': labels
+    }
 
 
 def create_dataloaders(

@@ -79,9 +79,11 @@ def tokenize_and_save(
     tokens_array = np.array(all_tokens, dtype=object)
     np.save(output_file, tokens_array)
     
-    # 파일 크기 확인
-    file_size = Path(output_file).stat().st_size / (1024 * 1024)
-    print(f"   - 파일 크기: {file_size:.1f} MB")
+    # 파일 크기 확인 (.npy 파일 확장자 추가)
+    npy_file = Path(str(output_file) + '.npy')
+    if npy_file.exists():
+        file_size = npy_file.stat().st_size / (1024 * 1024)
+        print(f"   - 파일 크기: {file_size:.1f} MB")
     
     print(f"\n🎉 완료! 다음 학습 시 빠르게 로드됩니다.")
 

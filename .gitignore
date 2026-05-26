@@ -8,17 +8,31 @@ venv/
 env/
 ENV/
 
-# 데이터
-data/raw/
-data/processed/
+# 데이터 (모든 데이터 파일 제외)
+data/
+!data/.gitkeep
 *.bin
 *.pkl
+*.txt
+*.json
+*.jsonl
+*.csv
+*.tsv
+*.parquet
 
 # 모델 / 체크포인트
 checkpoints/
 models/
 *.pth
 *.pt
+
+# Tokenizer (학습된 토크나이저 제외)
+tokenizer/
+!tokenizer/.gitkeep
+*.model
+*.vocab
+*.spm
+*.bpe
 
 # 로그
 logs/

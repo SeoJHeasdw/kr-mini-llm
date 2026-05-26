@@ -1,0 +1,17 @@
+# 텍스트 생성 기본 프로파일
+# 사용법: python scripts/generate.py --profile generate_default --prompt "안녕하세요"
+
+model:
+  checkpoint: checkpoints/final.pt
+  config: configs/model_small.yaml
+  tokenizer: tokenizer/korean_tokenizer.model
+
+generation:
+  max_new_tokens: 50
+  temperature: 0.8
+  top_p: 0.9
+  repetition_penalty: 1.1
+
+device: auto
+
+# Made with Bob

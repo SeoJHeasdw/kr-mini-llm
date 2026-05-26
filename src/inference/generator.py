@@ -117,12 +117,13 @@ class Generator:
     
     def _encode(self, text: str) -> torch.Tensor:
         """텍스트를 토큰 ID로 변환"""
-        # 토크나이저가 encode 메서드를 가지고 있다고 가정
-        if hasattr(self.tokenizer, 'encode'):
+        # 토크나이저가 있으면 사용
+        if self.tokenizer is not None and hasattr(self.tokenizer, 'encode'):
             token_ids = self.tokenizer.encode(text)
         else:
-            # 간단한 fallback
-            token_ids = [ord(c) for c in text]
+            # 간단한 fallback: 문자를 유니코드 코드포인트로 변환
+            # vocab_size 범위 내로 제한 (32000)
+            token_ids = [ord(c) % 32000 for c in text]
         
         return torch.tensor([token_ids], dtype=torch.long, device=self.device)
     
@@ -132,12 +133,25 @@ class Generator:
         if token_ids.dim() > 1:
             token_ids = token_ids[0]
         
-        # 토크나이저가 decode 메서드를 가지고 있다고 가정
-        if hasattr(self.tokenizer, 'decode'):
+        # 토크나이저가 있으면 사용
+        if self.tokenizer is not None and hasattr(self.tokenizer, 'decode'):
             text = self.tokenizer.decode(token_ids.tolist())
         else:
-            # 간단한 fallback
-            text = ''.join(chr(id) for id in token_ids.tolist() if id < 128)
+            # 간단한 fallback: 유효한 유니코드 범위만 변환
+            # 0xD800-0xDFFF (surrogate pairs)와 너무 큰 값 제외
+            chars = []
+            for token_id in token_ids.tolist():
+                try:
+                    # 유효한 유니코드 범위 체크
+                    if 0 <= token_id < 0xD800 or 0xE000 <= token_id <= 0x10FFFF:
+                        chars.append(chr(token_id))
+                    else:
+                        # 유효하지 않은 범위는 건너뛰기
+                        pass
+                except (ValueError, OverflowError):
+                    # 변환 실패 시 건너뛰기
+                    pass
+            text = ''.join(chars)
         
         return text
     
@@ -364,7 +378,13 @@ class Generator:
         """
         batch_size = input_ids.size(0)
         num_beams = config.num_beams
-        vocab_size = int(self.model.cfg.vocab_size)
+        # vocab_size를 안전하게 가져오기
+        vocab_size: int
+        if hasattr(self.model, 'cfg') and hasattr(self.model.cfg, 'vocab_size'):
+            vocab_size = int(getattr(self.model.cfg, 'vocab_size'))
+        else:
+            # fallback: 기본값 사용
+            vocab_size = 32000
         
         # 최대 길이 결정
         if config.max_new_tokens is not None:

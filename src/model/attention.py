@@ -102,7 +102,7 @@ class GroupedQueryAttention(nn.Module):
         """
         Args:
             x: (batch, seq_len, hidden_size)
-            attention_mask: (batch, 1, seq_len, seq_len) 또는 None
+            attention_mask: (batch, seq_len) 또는 (batch, 1, seq_len, seq_len) 또는 None
             kv_cache: 이전 KV 캐시 (추론 시)
             use_cache: 캐시 사용 여부
             start_pos: 캐시 사용 시 시작 위치
@@ -113,6 +113,13 @@ class GroupedQueryAttention(nn.Module):
             - new_kv_cache: 업데이트된 캐시 (use_cache=True일 때만)
         """
         batch_size, seq_len, _ = x.shape
+        
+        # attention_mask 변환: (batch, seq_len) -> (batch, 1, 1, seq_len)
+        if attention_mask is not None and attention_mask.dim() == 2:
+            # (batch, seq_len) -> (batch, 1, 1, seq_len)
+            attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
+            # 패딩 위치를 -inf로 변환 (0은 패딩, 1은 실제 토큰)
+            attention_mask = (1.0 - attention_mask) * -10000.0
         
         # === 1. Q, K, V Projection ===
         # Q: (batch, seq_len, num_heads, head_dim)

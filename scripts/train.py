@@ -179,9 +179,9 @@ def main():
         train_data=args.train_data,
         valid_data=args.valid_data,
         tokenizer=tokenizer,
-        batch_size=training_config['batch_size'],
-        max_length=model_config.max_seq_len,
-        num_workers=training_config.get('num_workers', 4),
+        batch_size=training_config.get('train', {}).get('batch_size', 16),
+        max_length=model_config.max_seq_length,
+        num_workers=training_config.get('train', {}).get('num_workers', 4),
         use_tokenized=use_tokenized,
         streaming=args.streaming,
     )
@@ -203,10 +203,11 @@ def main():
     
     # Optimizer 생성
     print(f"\n⚙️  Optimizer 생성...")
+    train_cfg = training_config.get('train', {})
     optimizer = create_optimizer(
         model=model,
-        lr=training_config['learning_rate'],
-        weight_decay=training_config.get('weight_decay', 0.01),
+        lr=train_cfg.get('learning_rate', 2e-4),
+        weight_decay=train_cfg.get('weight_decay', 0.1),
         betas=(0.9, 0.95),
         eps=1e-8,
     )
@@ -220,27 +221,27 @@ def main():
         optimizer=optimizer,
         device=str(device),
         output_dir=args.output_dir,
-        max_steps=training_config.get('max_steps', 100000),
-        eval_steps=training_config.get('eval_interval', 1000),
-        save_steps=training_config.get('save_interval', 5000),
-        logging_steps=training_config.get('logging_steps', 100),
-        gradient_accumulation_steps=training_config.get('gradient_accumulation_steps', 1),
-        max_grad_norm=training_config.get('max_grad_norm', 1.0),
-        use_amp=training_config.get('use_amp', True),
-        warmup_steps=training_config.get('warmup_steps', 2000),
-        lr_scheduler_type=training_config.get('lr_scheduler_type', 'cosine'),
+        max_steps=train_cfg.get('max_steps', 100000),
+        eval_steps=train_cfg.get('eval_interval', 1000),
+        save_steps=train_cfg.get('save_interval', 5000),
+        logging_steps=train_cfg.get('logging_steps', 100),
+        gradient_accumulation_steps=train_cfg.get('gradient_accumulation_steps', 1),
+        max_grad_norm=train_cfg.get('max_grad_norm', 1.0),
+        use_amp=train_cfg.get('use_amp', True),
+        warmup_steps=train_cfg.get('warmup_steps', 2000),
+        lr_scheduler_type=train_cfg.get('lr_scheduler_type', 'cosine'),
         resume_from=args.resume,
     )
     
     # 학습 시작
     print(f"\n🚀 학습 시작!")
     print(f"   - 출력 디렉토리: {args.output_dir}")
-    print(f"   - 배치 크기: {training_config['batch_size']}")
-    print(f"   - Gradient accumulation: {training_config.get('gradient_accumulation_steps', 1)}")
-    print(f"   - 유효 배치 크기: {training_config['batch_size'] * training_config.get('gradient_accumulation_steps', 1)}")
-    print(f"   - Learning rate: {training_config['learning_rate']}")
-    print(f"   - Warmup steps: {training_config.get('warmup_steps', 2000)}")
-    print(f"   - Mixed precision: {training_config.get('use_amp', True)}")
+    print(f"   - 배치 크기: {train_cfg.get('batch_size', 16)}")
+    print(f"   - Gradient accumulation: {train_cfg.get('gradient_accumulation_steps', 1)}")
+    print(f"   - 유효 배치 크기: {train_cfg.get('batch_size', 16) * train_cfg.get('gradient_accumulation_steps', 1)}")
+    print(f"   - Learning rate: {train_cfg.get('learning_rate', 2e-4)}")
+    print(f"   - Warmup steps: {train_cfg.get('warmup_steps', 2000)}")
+    print(f"   - Mixed precision: {train_cfg.get('use_amp', True)}")
     print()
     
     try:

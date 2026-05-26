@@ -1,0 +1,20 @@
+# Medium 모델 전체 학습용 프로파일
+# 사용법: python scripts/train.py --profile medium_full
+
+model:
+  config: configs/model_medium.yaml
+
+training:
+  config: configs/training_m4max.yaml
+
+data:
+  train: data/kullm/tokenized.npy
+  valid: data/kullm/tokenized.npy
+  tokenizer: tokenizer/korean_tokenizer.model
+
+output:
+  dir: checkpoints/medium
+
+device: mps
+
+# Made with Bob
