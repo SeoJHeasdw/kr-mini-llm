@@ -337,9 +337,9 @@ results = generator.generate_batch(
 
 ## 참고 자료
 
-- [Transformer 아키텍처](architecture.md)
-- [모델 설정](Configuration_update_plan.md)
-- [학습 가이드](Setup_and_testing.md)
+- [ARCHITECTURE.md](ARCHITECTURE.md) - 프로젝트 구조 및 아키텍처
+- [COMPONENTS.md](COMPONENTS.md) - 컴포넌트 상세 설명
+- [USAGE.md](USAGE.md) - 실제 사용 가이드
 
 ---
 
